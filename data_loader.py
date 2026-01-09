@@ -14,22 +14,30 @@ from torch.utils.data import Dataset, DataLoader
 class PreferenceDataset(Dataset):
     """
     Dataset for LLM preference classification.
-    
+
     Concatenates prompt + response_a + response_b for classification.
+
+    Supports multiple input formats:
+    - default: [PROMPT] prompt [RESPONSE A] response_a [RESPONSE B] response_b
+    - markdown: ### Prompt\n{prompt}\n\n### Response A\n...
+    - comparison: Compare these responses...
+    - simple: prompt [SEP] response_a [SEP] response_b
     """
-    
+
     def __init__(
         self,
         df: pd.DataFrame,
         tokenizer,
         max_length: int = 1024,
-        is_test: bool = False
+        is_test: bool = False,
+        format_type: str = "default"
     ):
         self.df = df.reset_index(drop=True)
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.is_test = is_test
-        
+        self.format_type = format_type
+
         # Target columns
         self.label_cols = ['winner_model_a', 'winner_model_b', 'winner_tie']
         
@@ -84,20 +92,40 @@ class PreferenceDataset(Dataset):
     ) -> str:
         """
         Format the input for the model.
-        
-        Structure: [PROMPT] prompt [RESPONSE A] response_a [RESPONSE B] response_b
+
+        Multiple formats available for experimentation:
+        - default: [PROMPT] prompt [RESPONSE A] response_a [RESPONSE B] response_b
+        - markdown: ### Prompt\n{prompt}\n\n### Response A\n...
+        - comparison: Compare: {prompt}\n\nOption A: ...
+        - simple: {prompt} [SEP] {response_a} [SEP] {response_b}
         """
         # Clean and truncate to prevent tokenizer overflow
         prompt = self._clean_text(prompt)[:2000]
         response_a = self._clean_text(response_a)[:3000]
         response_b = self._clean_text(response_b)[:3000]
-        
-        text = (
-            f"[PROMPT] {prompt} "
-            f"[RESPONSE A] {response_a} "
-            f"[RESPONSE B] {response_b}"
-        )
-        
+
+        if self.format_type == "markdown":
+            text = (
+                f"### Prompt\n{prompt}\n\n"
+                f"### Response A\n{response_a}\n\n"
+                f"### Response B\n{response_b}"
+            )
+        elif self.format_type == "comparison":
+            text = (
+                f"Compare these responses to the following prompt:\n\n"
+                f"Prompt: {prompt}\n\n"
+                f"Response A: {response_a}\n\n"
+                f"Response B: {response_b}"
+            )
+        elif self.format_type == "simple":
+            text = f"{prompt} [SEP] {response_a} [SEP] {response_b}"
+        else:  # default
+            text = (
+                f"[PROMPT] {prompt} "
+                f"[RESPONSE A] {response_a} "
+                f"[RESPONSE B] {response_b}"
+            )
+
         return text
     
     @staticmethod

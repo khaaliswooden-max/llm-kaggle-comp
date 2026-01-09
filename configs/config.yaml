@@ -1,0 +1,52 @@
+# LLM Classification Finetuning Configuration
+
+# Paths
+data:
+  train_path: "data/train.csv"
+  test_path: "data/test.csv"
+  output_dir: "models"
+  submission_path: "submission.csv"
+
+# Model
+model:
+  name: "microsoft/deberta-v3-large"
+  num_labels: 3
+  max_length: 1024
+  pooling: "cls"  # cls, mean, max
+
+# Training
+training:
+  seed: 42
+  epochs: 3
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+  fp16: true
+  
+# Cross-validation
+cv:
+  n_folds: 5
+  stratified: true
+
+# Early stopping
+early_stopping:
+  patience: 3
+  min_delta: 0.001
+
+# Class weights (for imbalanced ties)
+class_weights:
+  enabled: true
+  weights: [1.0, 1.0, 1.5]  # a_wins, b_wins, tie
+
+# Ensemble
+ensemble:
+  seeds: [42, 1337, 2024, 7777, 9999]
+  averaging: "geometric"  # arithmetic, geometric
+
+# Inference
+inference:
+  batch_size: 16
+  tta: false  # test-time augmentation (swap a/b)

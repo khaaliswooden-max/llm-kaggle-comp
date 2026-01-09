@@ -38,7 +38,6 @@ class TFIDFBaseline:
             C=C,
             max_iter=max_iter,
             class_weight=class_weight,
-            multi_class='multinomial',
             solver='lbfgs',
             n_jobs=n_jobs,
             random_state=42
@@ -132,7 +131,6 @@ class TFIDFBaseline:
                 C=self.model.C,
                 max_iter=self.model.max_iter,
                 class_weight=self.model.class_weight,
-                multi_class='multinomial',
                 solver='lbfgs',
                 n_jobs=self.model.n_jobs,
                 random_state=42

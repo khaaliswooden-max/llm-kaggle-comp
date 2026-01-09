@@ -1,0 +1,122 @@
+# Enhanced LLM Classification Finetuning Configuration
+# Includes all competition-winning techniques
+
+# =============================================================================
+# PATHS
+# =============================================================================
+data:
+  train_path: "data/train.csv"
+  test_path: "data/test.csv"
+  output_dir: "models"
+  submission_path: "submission.csv"
+
+# =============================================================================
+# MODEL
+# =============================================================================
+model:
+  name: "microsoft/deberta-v3-large"
+  num_labels: 3
+  max_length: 1536  # Increased from 1024 for better coverage
+  pooling: "mean"   # mean performs better than cls for this task
+
+# =============================================================================
+# TRAINING
+# =============================================================================
+training:
+  seed: 42
+  epochs: 5
+  batch_size: 4
+  gradient_accumulation_steps: 4  # Effective batch size = 16
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+  fp16: true
+
+# =============================================================================
+# OPTIMIZER (Layer-wise LR Decay)
+# =============================================================================
+optimizer:
+  use_llrd: true
+  llrd_factor: 0.9  # Each layer gets 90% of the next layer's LR
+  # Embeddings LR = base_lr * 0.9^num_layers
+  # Last layer LR = base_lr
+  # Head LR = base_lr * 5
+
+# =============================================================================
+# LEARNING RATE SCHEDULER
+# =============================================================================
+scheduler:
+  type: "cosine_warmup"
+  num_cycles: 1        # Set > 1 for warm restarts
+  min_lr_ratio: 0.0    # Minimum LR as fraction of initial
+
+# =============================================================================
+# LOSS FUNCTION
+# =============================================================================
+loss:
+  type: "label_smoothing"  # Options: cross_entropy, label_smoothing, focal
+  smoothing: 0.05          # Label smoothing factor
+  # For focal loss:
+  # gamma: 2.0             # Focusing parameter
+  # alpha: [1.0, 1.0, 1.5] # Class weights
+
+# =============================================================================
+# CROSS-VALIDATION
+# =============================================================================
+cv:
+  n_folds: 5
+  stratified: true
+
+# =============================================================================
+# EARLY STOPPING
+# =============================================================================
+early_stopping:
+  patience: 3
+  min_delta: 0.001
+
+# =============================================================================
+# TRAINING ENHANCEMENTS
+# =============================================================================
+
+# Exponential Moving Average
+ema:
+  enabled: true
+  decay: 0.999
+
+# FGM Adversarial Training (Fast Gradient Method)
+fgm:
+  enabled: true
+  epsilon: 0.5
+
+# AWP Adversarial Training (Adversarial Weight Perturbation)
+awp:
+  enabled: false  # Can enable for more robustness, but slower
+  adv_lr: 1.0e-4
+  adv_eps: 1.0e-2
+
+# R-Drop Regularization
+rdrop:
+  enabled: false  # Enable for extra regularization
+  alpha: 0.3
+
+# =============================================================================
+# MULTI-SEED ENSEMBLE
+# =============================================================================
+ensemble:
+  seeds: [42, 1337, 2024]  # Multiple seeds for ensembling
+  averaging: "geometric"   # geometric usually works better
+
+# =============================================================================
+# INFERENCE
+# =============================================================================
+inference:
+  batch_size: 16
+  tta: true  # Test-time augmentation (swap responses)
+
+# =============================================================================
+# CLASS WEIGHTS (for imbalanced ties)
+# =============================================================================
+class_weights:
+  enabled: true
+  weights: [1.0, 1.0, 1.5]  # a_wins, b_wins, tie

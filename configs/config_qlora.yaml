@@ -1,0 +1,88 @@
+# QLoRA Configuration for Large Language Models
+# Supports: Llama, Mistral, Gemma, Qwen, Phi, etc.
+
+# =============================================================================
+# PATHS
+# =============================================================================
+data:
+  train_path: "data/train.csv"
+  test_path: "data/test.csv"
+  output_dir: "models_qlora"
+  submission_path: "submission_qlora.csv"
+
+# =============================================================================
+# MODEL
+# =============================================================================
+model:
+  # Choose one of:
+  # - "meta-llama/Llama-2-7b-hf"
+  # - "meta-llama/Meta-Llama-3-8B"
+  # - "mistralai/Mistral-7B-v0.1"
+  # - "google/gemma-7b" or "google/gemma-2b"
+  # - "Qwen/Qwen1.5-7B" or "Qwen/Qwen1.5-1.8B"
+  # - "microsoft/phi-2"
+  name: "google/gemma-2b"  # Start with smaller model
+  num_labels: 3
+  max_length: 1536
+  input_format: "instruct"  # instruct, simple, chat
+
+# =============================================================================
+# QUANTIZATION
+# =============================================================================
+quantization:
+  use_4bit: true
+  bnb_4bit_compute_dtype: "float16"
+  use_nested_quant: true  # Double quantization
+
+# =============================================================================
+# LORA
+# =============================================================================
+lora:
+  r: 16              # LoRA rank (8-64 typical)
+  alpha: 32          # LoRA alpha (usually 2x rank)
+  dropout: 0.1       # LoRA dropout
+  # Target modules are auto-detected per model
+
+# =============================================================================
+# TRAINING
+# =============================================================================
+training:
+  seed: 42
+  epochs: 3
+  batch_size: 2              # Small batch for large models
+  gradient_accumulation_steps: 8  # Effective batch size = 16
+  learning_rate: 2.0e-4      # Higher LR for LoRA
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  max_grad_norm: 1.0
+  fp16: false                # Usually false for QLoRA
+
+# Gradient checkpointing (saves memory)
+gradient_checkpointing: true
+
+# =============================================================================
+# CROSS-VALIDATION
+# =============================================================================
+cv:
+  n_folds: 5
+  stratified: true
+
+# =============================================================================
+# EARLY STOPPING
+# =============================================================================
+early_stopping:
+  patience: 2        # Less patience for large models
+
+# =============================================================================
+# ENSEMBLE
+# =============================================================================
+ensemble:
+  seeds: [42]        # Single seed by default (expensive to train)
+  averaging: "arithmetic"
+
+# =============================================================================
+# INFERENCE
+# =============================================================================
+inference:
+  batch_size: 4
+  tta: true
