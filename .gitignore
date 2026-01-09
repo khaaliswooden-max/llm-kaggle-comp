@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Data files (download from Kaggle)
+data/*.csv
+!data/create_sample_data.py
+
+# Model checkpoints
+models/
+models_qlora/
+*.pt
+*.pth
+*.bin
+*.safetensors
+
+# Submissions
+submission*.csv
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.venv/
+venv/
+env/
+
+# Logs
+*.log
+wandb/
+runs/
