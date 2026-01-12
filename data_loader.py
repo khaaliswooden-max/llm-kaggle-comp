@@ -2,19 +2,50 @@
 Data loading utilities for LLM Classification Finetuning.
 """
 
+import json
 import pandas as pd
 import numpy as np
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Union
 from sklearn.model_selection import StratifiedKFold
 import torch
 from torch.utils.data import Dataset, DataLoader
+
+
+def parse_conversation(text: Union[str, list]) -> str:
+    """
+    Parse conversation data which may be:
+    - JSON array: '["turn1", "turn2"]' -> "turn1 [TURN] turn2"
+    - Plain string: "hello" -> "hello"
+    - List: ["turn1", "turn2"] -> "turn1 [TURN] turn2"
+    """
+    if pd.isna(text):
+        return ""
+    
+    # Already a list
+    if isinstance(text, list):
+        return " [TURN] ".join(str(t) for t in text)
+    
+    text = str(text)
+    
+    # Try to parse as JSON array
+    if text.startswith('['):
+        try:
+            parsed = json.loads(text)
+            if isinstance(parsed, list):
+                return " [TURN] ".join(str(t) for t in parsed)
+        except json.JSONDecodeError:
+            pass
+    
+    # Return as-is
+    return text
 
 
 class PreferenceDataset(Dataset):
     """
     Dataset for LLM preference classification.
     
+    Handles multi-turn conversations stored as JSON arrays.
     Concatenates prompt + response_a + response_b for classification.
     """
     
@@ -39,12 +70,12 @@ class PreferenceDataset(Dataset):
     def __getitem__(self, idx: int) -> dict:
         row = self.df.iloc[idx]
         
-        # Format input text
-        text = self._format_input(
-            prompt=str(row['prompt']),
-            response_a=str(row['response_a']),
-            response_b=str(row['response_b'])
-        )
+        # Parse JSON arrays and format input text
+        prompt = parse_conversation(row['prompt'])
+        response_a = parse_conversation(row['response_a'])
+        response_b = parse_conversation(row['response_b'])
+        
+        text = self._format_input(prompt, response_a, response_b)
         
         # Tokenize
         encoding = self.tokenizer(
@@ -87,7 +118,7 @@ class PreferenceDataset(Dataset):
         
         Structure: [PROMPT] prompt [RESPONSE A] response_a [RESPONSE B] response_b
         """
-        # Clean and truncate to prevent tokenizer overflow
+        # Truncate to prevent tokenizer overflow
         prompt = self._clean_text(prompt)[:2000]
         response_a = self._clean_text(response_a)[:3000]
         response_b = self._clean_text(response_b)[:3000]
