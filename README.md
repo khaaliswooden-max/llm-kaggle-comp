@@ -1,37 +1,41 @@
-# LLM Classification Finetuning - Kaggle Competition
+# LLM Classification Finetuning — Kaggle Competition
 
-Predict which chatbot response humans prefer in head-to-head LLM battles.
+Predict which chatbot response humans prefer in head-to-head LLM battles from the
+[Chatbot Arena](https://lmarena.ai/) dataset.
 
 ## Competition Overview
 
-- **Task**: 3-class classification (winner_model_a, winner_model_b, tie)
-- **Metric**: Log Loss
+- **Task**: 3-class classification — `winner_model_a`, `winner_model_b`, `winner_tie`
+- **Metric**: Multi-class log loss (lower is better)
 - **Data**: Chatbot Arena conversations with human preference labels
+- **Submission**: A CSV of per-row probabilities for the three outcomes
 
 ## Project Structure
 
+All modules live at the repository root:
+
 ```
 llm-kaggle-comp/
-├── configs/
-│   └── config.yaml          # Training hyperparameters
-├── data/
-│   ├── train.csv            # Download from Kaggle
-│   └── test.csv             # Download from Kaggle
-├── models/                  # Saved model checkpoints
-├── notebooks/               # Exploration notebooks
-├── scripts/
-│   ├── run_baseline.py      # Run TF-IDF baseline
-│   └── run_training.py      # Run DeBERTa training
-├── src/
-│   ├── data_loader.py       # Data loading utilities
-│   ├── preprocessing.py     # Text preprocessing
-│   ├── baseline_tfidf.py    # TF-IDF + LogReg baseline
-│   ├── deberta_model.py     # DeBERTa model architecture
-│   ├── train_deberta.py     # Training loop
-│   └── inference.py         # Generate submissions
+├── config.yaml            # Training hyperparameters
+├── data_loader.py         # Dataset, folds, and dataloaders
+├── preprocessing.py       # Text cleaning + TF-IDF feature helpers
+├── baseline_tfidf.py      # TF-IDF + LogReg baseline
+├── deberta_model.py       # DeBERTa architecture (pooling, AWP)
+├── train_deberta.py       # Cross-validation training loop
+├── inference.py           # Prediction, TTA, ensembling
+├── run_baseline.py        # Entry point: run the TF-IDF baseline
+├── run_training.py        # Entry point: run DeBERTa training
+├── deberta_training.ipynb # Exploration / Kaggle notebook
+├── __init__.py            # Package exports
 ├── requirements.txt
-└── README.md
+├── train_sample.csv       # Small sample of the training data
+├── test.csv               # Test set
+└── sample_submission.csv  # Submission format reference
 ```
+
+> **Note:** The scripts default to `data/train.csv`, `data/test.csv`, and
+> `configs/config.yaml` paths. Either pass explicit paths via the CLI flags shown
+> below, or place your Kaggle downloads under a `data/` directory.
 
 ## Quick Start
 
@@ -48,27 +52,50 @@ kaggle competitions download -c llm-classification-finetuning
 unzip llm-classification-finetuning.zip -d data/
 ```
 
-### 3. Run TF-IDF Baseline
+A `train_sample.csv` and `test.csv` are included so you can smoke-test the
+pipeline before downloading the full dataset.
+
+### 3. Run the TF-IDF Baseline
 
 ```bash
-python scripts/run_baseline.py
+python run_baseline.py --train train_sample.csv --test test.csv
 ```
 
-Expected score: ~1.10 (establishes floor)
+Expected score: ~1.10 (establishes the floor).
 
 ### 4. Train DeBERTa
 
 ```bash
-python scripts/run_training.py --config configs/config.yaml
+python run_training.py --config config.yaml
 ```
 
-Expected score: ~1.02-1.05
-
-### 5. Generate Submission
+Expected score: ~1.02–1.05. Override any hyperparameter from the CLI:
 
 ```bash
-python src/inference.py --model_path models/best_model.pt --output submission.csv
+python run_training.py --config config.yaml --seed 1337 --epochs 2 --lr 1e-5
 ```
+
+### 5. Generate a Submission
+
+```bash
+python inference.py --model_path models/best_model.pt --output submission.csv
+```
+
+## Data Format
+
+Each row contains a shared `prompt` and two competing responses:
+
+| Column | Description |
+|--------|-------------|
+| `id` | Unique row identifier |
+| `prompt` | User prompt (may be a JSON array of multi-turn messages) |
+| `response_a` | Response from model A |
+| `response_b` | Response from model B |
+| `winner_model_a` / `winner_model_b` / `winner_tie` | One-hot labels (train only) |
+
+Prompts and responses may be stored as JSON arrays for multi-turn conversations;
+`data_loader.parse_conversation` flattens these into a single string joined by
+`[TURN]` markers.
 
 ## Approach Hierarchy
 
@@ -81,17 +108,32 @@ python src/inference.py --model_path models/best_model.pt --output submission.cs
 
 ## Key Insights
 
-1. **Input Format**: Concatenate `[CLS] prompt [SEP] response_a [SEP] response_b [SEP]`
-2. **Max Length**: 1024-1536 tokens captures most examples
-3. **Class Weights**: Ties are underrepresented; consider weighted loss
-4. **Ensembling**: All top solutions use model ensembles
+1. **Input Format**: Concatenate prompt + both responses with segment markers
+   (`[PROMPT] … [RESPONSE A] … [RESPONSE B] …`).
+2. **Max Length**: 1024–1536 tokens captures most examples.
+3. **Class Weights**: Ties are underrepresented; a weighted loss helps
+   (see `class_weights` in `config.yaml`).
+4. **Ensembling**: All strong solutions average across multiple seeds/models
+   (geometric averaging by default).
 
 ## Hardware Requirements
 
-- **Baseline**: CPU only, <5 min
-- **DeBERTa**: 1x GPU (16GB+), ~2-4 hours
-- **7B Models**: 1x A100 or 2x T4 with QLoRA
+| Stage | Requirement | Runtime |
+|-------|-------------|---------|
+| Baseline | CPU only | <5 min |
+| DeBERTa | 1× GPU (16 GB+) | ~2–4 hours |
+| 7B models | 1× A100 or 2× T4 with QLoRA | Varies |
+
+## Configuration
+
+All training behavior is controlled by `config.yaml` — model name, max sequence
+length, learning rate, cross-validation folds, class weights, and the ensemble
+seed list. See the file for the full annotated set of options.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
-MIT
+Released under the [MIT License](LICENSE).
